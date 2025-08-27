@@ -37,9 +37,9 @@ services:
           echo "Creating certs";
           echo -ne \
           "instances:\n"\
-          "  - name: es01\n"\
+          "  - name: SPMDF1019\n"\
           "    dns:\n"\
-          "      - es01\n"\
+          "      - SPMDF1019\n"\
           "      - localhost\n"\
           "    ip:\n"\
           "      - 127.0.0.1\n"\
@@ -70,7 +70,7 @@ services:
       '
     # one-shot job; other services depend on its successful completion
 
-  es01:
+  SPMDF1019:
     depends_on:
       setup:
         condition: service_completed_successfully
@@ -84,19 +84,19 @@ services:
       - ${ES_PORT}:9200
     restart: always
     environment:
-      - node.name=es01
+      - node.name=SPMDF1019
       - cluster.name=${CLUSTER_NAME}
-      - cluster.initial_master_nodes=es01
+      - cluster.initial_master_nodes=SPMDF1019
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - bootstrap.memory_lock=true
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
-      - xpack.security.http.ssl.key=certs/es01/es01.key
-      - xpack.security.http.ssl.certificate=certs/es01/es01.crt
+      - xpack.security.http.ssl.key=certs/SPMDF1019/SPMDF1019.key
+      - xpack.security.http.ssl.certificate=certs/SPMDF1019/SPMDF1019.crt
       - xpack.security.http.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.enabled=true
-      - xpack.security.transport.ssl.key=certs/es01/es01.key
-      - xpack.security.transport.ssl.certificate=certs/es01/es01.crt
+      - xpack.security.transport.ssl.key=certs/SPMDF1019/SPMDF1019.key
+      - xpack.security.transport.ssl.certificate=certs/SPMDF1019/SPMDF1019.crt
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
       - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
@@ -114,7 +114,7 @@ services:
 
   kibana:
     depends_on:
-      es01:
+      SPMDF1019:
         condition: service_healthy
       es-setup:
         condition: service_healthy
@@ -135,7 +135,7 @@ services:
       - SERVER_SSL_KEY=config/certs/kibana/kibana.key
       - SERVER_SSL_CERTIFICATE=config/certs/kibana/kibana.crt
       - SERVER_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
-      - ELASTICSEARCH_HOSTS=https://es01:9200
+      - ELASTICSEARCH_HOSTS=https://SPMDF1019:9200
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
       - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
@@ -159,7 +159,7 @@ services:
     depends_on:
       kibana:
         condition: service_healthy
-      es01:
+      SPMDF1019:
         condition: service_healthy
     volumes:
       - certs:/certs
@@ -191,7 +191,7 @@ services:
         condition: service_healthy
       kibana:
         condition: service_healthy
-      es01:
+      SPMDF1019:
         condition: service_healthy
     image: docker.elastic.co/elastic-agent/elastic-agent:${STACK_VERSION}
     volumes:
@@ -208,7 +208,7 @@ services:
       - FLEET_ENROLL=1
       - FLEET_INSECURE=false
       - FLEET_SERVER_ELASTICSEARCH_CA=/certs/ca/ca.crt
-      - FLEET_SERVER_ELASTICSEARCH_HOST=https://es01:9200
+      - FLEET_SERVER_ELASTICSEARCH_HOST=https://SPMDF1019:9200
       - FLEET_SERVER_ELASTICSEARCH_INSECURE=false
       - FLEET_SERVER_ENABLE=true
       - FLEET_SERVER_CERT=/certs/fleet-server/fleet-server.crt
@@ -232,7 +232,7 @@ services:
     image: curlimages/curl:8.7.1
     user: "0"
     depends_on:
-      es01:
+      SPMDF1019:
         condition: service_healthy
     volumes:
       - certs:/certs
@@ -242,7 +242,7 @@ services:
     command: >
       sh -c '
         echo "Setting kibana_system password...";
-        until curl -s -X POST --cacert /certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do
+        until curl -s -X POST --cacert /certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://SPMDF1019:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do
           sleep 5;
         done;
         echo "kibana_system password set.";

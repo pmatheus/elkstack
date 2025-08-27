@@ -1,5 +1,6 @@
 server.host: "0.0.0.0"
 telemetry.enabled: "false"
+xpack.fleet.agents.fleet_server.hosts: ["https://localhost:8220","https://${HOST_IP}:8220"]
 xpack.fleet.packages:
   - name: fleet_server
     version: latest

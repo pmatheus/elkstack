@@ -1,5 +1,4 @@
 server.host: "0.0.0.0"
-telemetry.enabled: "false"
 xpack.fleet.agents.fleet_server.hosts: ["https://localhost:8220","https://${HOST_IP}:8220"]
 xpack.fleet.packages:
   - name: fleet_server
@@ -15,3 +14,14 @@ xpack.fleet.agentPolicies:
         package:
           name: fleet_server
 
+# Preconfigure Fleet output to skip TLS verification (dev only)
+# This avoids needing xpack.fleet.agents.elasticsearch.ca_sha256
+xpack.fleet.outputs:
+  - id: default
+    name: default
+    type: elasticsearch
+    is_default: true
+    is_default_monitoring: true
+    hosts: ["https://es01:9200"]
+    config:
+      ssl.verification_mode: none

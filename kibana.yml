@@ -22,6 +22,6 @@ xpack.fleet.outputs:
     type: elasticsearch
     is_default: true
     is_default_monitoring: true
-    hosts: ["https://SPMDF1019:9200"]
+    hosts: ["https://elastic:9200"]
     config:
       ssl.verification_mode: none

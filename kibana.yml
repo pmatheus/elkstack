@@ -1,5 +1,5 @@
 server.host: "0.0.0.0"
-xpack.fleet.agents.fleet_server.hosts: ["https://localhost:8220","https://${HOST_IP}:8220"]
+xpack.fleet.agents.fleet_server.hosts: ["https://${HOST_IP}:8220"]
 xpack.fleet.packages:
   - name: fleet_server
     version: latest
@@ -22,6 +22,6 @@ xpack.fleet.outputs:
     type: elasticsearch
     is_default: true
     is_default_monitoring: true
-    hosts: ["https://elastic:9200"]
+    hosts: ["https://${HOST_IP}:9200"]
     config:
       ssl.verification_mode: none

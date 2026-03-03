@@ -5,6 +5,8 @@ xpack.fleet.packages:
     version: latest
   - name: system
     version: latest
+  - name: windows
+    version: latest
 xpack.fleet.agentPolicies:
   - name: Fleet-Server-Policy
     id: fleet-server-policy
@@ -13,6 +15,34 @@ xpack.fleet.agentPolicies:
       - name: fleet_server-1
         package:
           name: fleet_server
+  - name: MASHunt-Lab
+    id: mashunt-lab-policy
+    namespace: default
+    monitoring_enabled:
+      - logs
+      - metrics
+    package_policies:
+      - name: windows-mashunt
+        id: windows-mashunt
+        package:
+          name: windows
+          version: latest
+        inputs:
+          - type: winlog
+            enabled: true
+            streams:
+              - data_stream:
+                  dataset: windows.sysmon_operational
+                enabled: true
+              - data_stream:
+                  dataset: windows.powershell
+                enabled: true
+              - data_stream:
+                  dataset: windows.powershell_operational
+                enabled: true
+              - data_stream:
+                  dataset: windows.security
+                enabled: true
 
 # Preconfigure Fleet output to skip TLS verification (dev only)
 # This avoids needing xpack.fleet.agents.elasticsearch.ca_sha256

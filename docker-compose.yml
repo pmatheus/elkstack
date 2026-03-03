@@ -89,6 +89,7 @@ services:
       - cluster.initial_master_nodes=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - bootstrap.memory_lock=true
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
       - xpack.security.http.ssl.key=certs/elastic/elastic.key
@@ -222,6 +223,7 @@ services:
       - KIBANA_FLEET_USERNAME=elastic
       - KIBANA_FLEET_PASSWORD=${ELASTIC_PASSWORD}
       - KIBANA_HOST=https://kibana:5601
+    mem_limit: 1g
     healthcheck:
       test: [ "CMD-SHELL", "curl -s --cacert /certs/ca/ca.crt https://localhost:8220/api/status | grep -q 'HEALTHY'" ]
       interval: 10s

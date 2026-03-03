@@ -48,8 +48,10 @@ fi
 
 # Load .env if present to get ports and passwords
 if [[ -f .env ]]; then
-  # shellcheck disable=SC2046
-  export $(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' .env | xargs -I {} echo {})
+  set -a
+  # shellcheck disable=SC1091
+  source .env
+  set +a
 fi
 
 : "${ES_PORT:=9200}"
@@ -94,16 +96,16 @@ wait_for "Elasticsearch HTTPS up" \
 
 echo "Checking Kibana status (requires elastic credentials)..."
 wait_for "Kibana overall status available" \
-  bash -lc "curl -s -k -u elastic:${ELASTIC_PASSWORD} https://localhost:${KIBANA_PORT}/api/status | grep -q '"overall":{"level":"available"'"
+  bash -lc "curl -s -k -u elastic:${ELASTIC_PASSWORD} https://localhost:${KIBANA_PORT}/api/status | grep -q '\"overall\":{\"level\":\"available\"'"
 
 echo "Checking Fleet setup (Kibana Fleet initialization)..."
 wait_for "Fleet initialized in Kibana" \
-  bash -lc "curl -s -k -u elastic:${ELASTIC_PASSWORD} https://localhost:${KIBANA_PORT}/api/fleet/setup | grep -q '"isInitialized":true'"
+  bash -lc "curl -s -k -u elastic:${ELASTIC_PASSWORD} https://localhost:${KIBANA_PORT}/api/fleet/setup | grep -q '\"isInitialized\":true'"
 
 echo "Checking Fleet Server health..."
 wait_for "Fleet Server HEALTHY" \
   bash -lc "curl -s -k https://localhost:${FLEET_PORT}/api/status | grep -q 'HEALTHY'"
 
 echo "All components are healthy. You can now open Kibana at: https://localhost:${KIBANA_PORT}"
-echo "Tip: tail logs with 'docker compose logs -f es01 kibana fleet-server'"
+echo "Tip: tail logs with 'docker compose logs -f elastic kibana fleet-server'"
 

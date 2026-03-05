@@ -21,20 +21,13 @@ services:
     user: "0"
     command: >
       bash -c '
-        if [ x${ELASTIC_PASSWORD} == x ]; then
-          echo "Set the ELASTIC_PASSWORD environment variable in the .env file";
-          exit 1;
-        elif [ x${KIBANA_PASSWORD} == x ]; then
-          echo "Set the KIBANA_PASSWORD environment variable in the .env file";
-          exit 1;
-        fi;
         if [ ! -f config/certs/ca.zip ]; then
-          echo "Creating CA";
+          echo "Gerando CA...";
           bin/elasticsearch-certutil ca --silent --pem -out config/certs/ca.zip;
           unzip config/certs/ca.zip -d config/certs;
         fi;
         if [ ! -f config/certs/certs.zip ]; then
-          echo "Creating certs";
+          echo "Gerando Certificados para IP ${HOST_IP}...";
           echo -ne \
           "instances:\n"\
           "  - name: elastic\n"\
@@ -51,32 +44,19 @@ services:
           "    ip:\n"\
           "      - 127.0.0.1\n"\
           "      - ${HOST_IP}\n"\
-          "  - name: fleet-server\n"\
-          "    dns:\n"\
-          "      - fleet-server\n"\
-          "      - localhost\n"\
-          "    ip:\n"\
-          "      - 127.0.0.1\n"\
-          "      - ${HOST_IP}\n"\
           > config/certs/instances.yml;
           bin/elasticsearch-certutil cert --silent --pem -out config/certs/certs.zip --in config/certs/instances.yml --ca-cert config/certs/ca/ca.crt --ca-key config/certs/ca/ca.key;
           unzip config/certs/certs.zip -d config/certs;
         fi;
-        echo "Setting file permissions";
-        chown -R root:root config/certs;
-        find . -type d -exec chmod 750 {} \;; 
-        find . -type f -exec chmod 640 {} \;; 
-        echo "Certificates created, setup complete.";
+        chown -R 1000:0 config/certs;
+        echo "Setup de Certificados Concluído.";
       '
-    # one-shot job; other services depend on its successful completion
 
   elastic:
     depends_on:
       setup:
         condition: service_completed_successfully
     image: docker.elastic.co/elasticsearch/elasticsearch:${STACK_VERSION}
-    labels:
-      co.elastic.logs/module: elasticsearch
     volumes:
       - certs:/usr/share/elasticsearch/config/certs
       - esdata01:/usr/share/elasticsearch/data
@@ -89,7 +69,7 @@ services:
       - cluster.initial_master_nodes=elastic
       - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
       - bootstrap.memory_lock=true
-      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - ES_JAVA_OPTS=-Xms2g -Xmx2g
       - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=true
       - xpack.security.http.ssl.key=certs/elastic/elastic.key
@@ -99,136 +79,13 @@ services:
       - xpack.security.transport.ssl.key=certs/elastic/elastic.key
       - xpack.security.transport.ssl.certificate=certs/elastic/elastic.crt
       - xpack.security.transport.ssl.certificate_authorities=certs/ca/ca.crt
-      - xpack.security.transport.ssl.verification_mode=certificate
       - xpack.license.self_generated.type=${LICENSE}
     mem_limit: ${ES_MEM_LIMIT}
-    cpus: ${ES_CPU_LIMIT}
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
     healthcheck:
-      test: [ "CMD-SHELL", "curl -s --cacert config/certs/ca/ca.crt https://localhost:9200 | grep -q 'missing authentication credentials'" ]
+      test: ["CMD-SHELL", "curl -s --cacert config/certs/ca/ca.crt -u elastic:${ELASTIC_PASSWORD} https://localhost:9200 | grep -q 'cluster_name'"]
       interval: 10s
       timeout: 10s
-      retries: 120
-
-  kibana:
-    depends_on:
-      elastic:
-        condition: service_healthy
-      es-setup:
-        condition: service_healthy
-    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
-    labels:
-      co.elastic.logs/module: kibana
-    volumes:
-      - certs:/usr/share/kibana/config/certs
-      - kibanadata:/usr/share/kibana/data
-      - ./kibana.yml:/usr/share/kibana/config/kibana.yml:Z
-    ports:
-      - ${KIBANA_PORT}:5601
-    restart: always
-    environment:
-      - HOST_IP=${HOST_IP}
-      - SERVERNAME=kibana
-      - SERVER_SSL_ENABLED=true
-      - SERVER_SSL_KEY=config/certs/kibana/kibana.key
-      - SERVER_SSL_CERTIFICATE=config/certs/kibana/kibana.crt
-      - SERVER_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
-      - ELASTICSEARCH_HOSTS=https://elastic:9200
-      - ELASTICSEARCH_USERNAME=kibana_system
-      - ELASTICSEARCH_PASSWORD=${KIBANA_PASSWORD}
-      - ELASTICSEARCH_SSL_CERTIFICATEAUTHORITIES=config/certs/ca/ca.crt
-      - XPACK_SECURITY_ENCRYPTIONKEY=${ENCRYPTION_KEY}
-      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=${ENCRYPTION_KEY}
-      - XPACK_REPORTING_ENCRYPTIONKEY=${ENCRYPTION_KEY}
-      - XPACK_REPORTING_KIBANASERVER_HOSTNAME=localhost
-      # Expose elastic superuser password to healthcheck only
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-    mem_limit: ${KB_MEM_LIMIT}
-    healthcheck:
-      # Kibana is healthy when overall status is available
-      test: curl -s -k -u elastic:${ELASTIC_PASSWORD} https://localhost:5601/api/status | grep -q '"overall":{"level":"available"'
-      interval: 10s
-      timeout: 10s
-      retries: 120
-
-  kibana-setup:
-    image: curlimages/curl:8.7.1
-    user: "0"
-    depends_on:
-      kibana:
-        condition: service_healthy
-      elastic:
-        condition: service_healthy
-    volumes:
-      - certs:/certs
-    environment:
-      - KIBANA_URL=https://kibana:5601
-      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-    command: >
-      sh -c '
-        echo "Waiting for Kibana API to be available...";
-        until curl -s --cacert /certs/ca/ca.crt -u elastic:${ELASTIC_PASSWORD} $${KIBANA_URL}/api/status | grep -q "\"overall\":{\"level\":\"available\""; do
-          sleep 5;
-        done;
-        echo "Triggering Fleet setup...";
-        until curl -s --cacert /certs/ca/ca.crt -u elastic:${ELASTIC_PASSWORD} -H "kbn-xsrf: true" -X POST $${KIBANA_URL}/api/fleet/setup | grep -q "\"isInitialized\":true"; do
-          sleep 5;
-        done;
-        echo "Fleet setup complete.";
-        touch /tmp/setup-done;
-        tail -f /dev/null;
-      '
-    healthcheck:
-      test: [ "CMD-SHELL", "[ -f /tmp/setup-done ]" ]
-      interval: 5s
-      timeout: 5s
-      retries: 60
-  fleet-server:
-    depends_on:
-      kibana-setup:
-        condition: service_healthy
-      kibana:
-        condition: service_healthy
-      elastic:
-        condition: service_healthy
-    image: docker.elastic.co/elastic-agent/elastic-agent:${STACK_VERSION}
-    volumes:
-      - certs:/certs
-      - fleetserverdata:/usr/share/elastic-agent
-    ports:
-      - ${FLEET_PORT}:8220
-    user: root
-    restart: always
-    environment:
-      - SSL_CERTIFICATE_AUTHORITIES=/certs/ca/ca.crt
-      - CERTIFICATE_AUTHORITIES=/certs/ca/ca.crt
-      - FLEET_CA=/certs/ca/ca.crt
-      - FLEET_ENROLL=1
-      - FLEET_INSECURE=false
-      - FLEET_SERVER_ELASTICSEARCH_CA=/certs/ca/ca.crt
-      - FLEET_SERVER_ELASTICSEARCH_HOST=https://elastic:9200
-      - FLEET_SERVER_ELASTICSEARCH_INSECURE=false
-      - FLEET_SERVER_ENABLE=true
-      - FLEET_SERVER_CERT=/certs/fleet-server/fleet-server.crt
-      - FLEET_SERVER_CERT_KEY=/certs/fleet-server/fleet-server.key
-      - FLEET_SERVER_HOST=0.0.0.0
-      - FLEET_SERVER_POLICY_ID=fleet-server-policy
-      - FLEET_SERVER_PORT=8220
-      - FLEET_URL=https://fleet-server:8220
-      - KIBANA_FLEET_CA=/certs/ca/ca.crt
-      - KIBANA_FLEET_SETUP=1
-      - KIBANA_FLEET_USERNAME=elastic
-      - KIBANA_FLEET_PASSWORD=${ELASTIC_PASSWORD}
-      - KIBANA_HOST=https://kibana:5601
-    mem_limit: 1g
-    healthcheck:
-      test: [ "CMD-SHELL", "curl -s --cacert /certs/ca/ca.crt https://localhost:8220/api/status | grep -q 'HEALTHY'" ]
-      interval: 10s
-      timeout: 10s
-      retries: 120
+      retries: 24
 
   es-setup:
     image: curlimages/curl:8.7.1
@@ -243,16 +100,43 @@ services:
       - KIBANA_PASSWORD=${KIBANA_PASSWORD}
     command: >
       sh -c '
-        echo "Setting kibana_system password...";
+        echo "Ajustando senhas e limites de disco...";
+        # 1. Reset Kibana System Password
         until curl -s -X POST --cacert /certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://elastic:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do
           sleep 5;
         done;
-        echo "kibana_system password set.";
+        # 2. Desabilitar Watermarks (Lab Mode)
+        curl -s -X PUT --cacert /certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://elastic:9200/_cluster/settings -d "{\"persistent\":{\"cluster.routing.allocation.disk.threshold_enabled\":false}}";
+        echo "Elastic Ready.";
         touch /tmp/done;
         tail -f /dev/null;
       '
     healthcheck:
-      test: [ "CMD-SHELL", "[ -f /tmp/done ]" ]
+      test: ["CMD-SHELL", "[ -f /tmp/done ]"]
       interval: 5s
       timeout: 5s
       retries: 60
+
+  kibana:
+    depends_on:
+      es-setup:
+        condition: service_healthy
+    image: docker.elastic.co/kibana/kibana:${STACK_VERSION}
+    volumes:
+      - certs:/usr/share/kibana/config/certs
+      - kibanadata:/usr/share/kibana/data
+      - ./kibana.yml:/usr/share/kibana/config/kibana.yml:Z
+    ports:
+      - ${KIBANA_PORT}:5601
+    restart: always
+    environment:
+      - HOST_IP=${HOST_IP}
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - KIBANA_PASSWORD=${KIBANA_PASSWORD}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+    mem_limit: ${KB_MEM_LIMIT}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s -k -u elastic:${ELASTIC_PASSWORD} https://localhost:5601/api/status | grep -q '\"level\":\"available\"'"]
+      interval: 10s
+      timeout: 10s
+      retries: 24

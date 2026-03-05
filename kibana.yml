@@ -1,57 +1,20 @@
 server.host: "0.0.0.0"
-xpack.fleet.agents.fleet_server.hosts: ["https://${HOST_IP}:8220"]
-xpack.fleet.packages:
-  - name: fleet_server
-    version: latest
-  - name: system
-    version: latest
-  - name: windows
-    version: latest
-xpack.fleet.agentPolicies:
-  - name: Fleet-Server-Policy
-    id: fleet-server-policy
-    namespace: default
-    package_policies:
-      - name: fleet_server-1
-        package:
-          name: fleet_server
-  - name: MASHunt-Lab
-    id: mashunt-lab-policy
-    namespace: default
-    monitoring_enabled:
-      - logs
-      - metrics
-    package_policies:
-      - name: windows-mashunt
-        id: windows-mashunt
-        package:
-          name: windows
-          version: latest
-        inputs:
-          - type: winlog
-            enabled: true
-            streams:
-              - data_stream:
-                  dataset: windows.sysmon_operational
-                enabled: true
-              - data_stream:
-                  dataset: windows.powershell
-                enabled: true
-              - data_stream:
-                  dataset: windows.powershell_operational
-                enabled: true
-              - data_stream:
-                  dataset: windows.security
-                enabled: true
+server.publicBaseUrl: "https://${HOST_IP}:5601"
+server.name: "kibana"
 
-# Preconfigure Fleet output to skip TLS verification (dev only)
-# This avoids needing xpack.fleet.agents.elasticsearch.ca_sha256
-xpack.fleet.outputs:
-  - id: default
-    name: default
-    type: elasticsearch
-    is_default: true
-    is_default_monitoring: true
-    hosts: ["https://${HOST_IP}:9200"]
-    config:
-      ssl.verification_mode: none
+elasticsearch.hosts: ["https://elastic:9200"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "${KIBANA_PASSWORD}"
+elasticsearch.ssl.certificateAuthorities: ["config/certs/ca/ca.crt"]
+
+xpack.security.encryptionKey: "${ENCRYPTION_KEY}"
+xpack.encryptedSavedObjects.encryptionKey: "${ENCRYPTION_KEY}"
+xpack.reporting.encryptionKey: "${ENCRYPTION_KEY}"
+
+# Configurações de SSL do Servidor (Browser -> Kibana)
+server.ssl.enabled: true
+server.ssl.certificate: config/certs/kibana/kibana.crt
+server.ssl.key: config/certs/kibana/kibana.key
+server.ssl.certificateAuthorities: ["config/certs/ca/ca.crt"]
+
+monitoring.ui.container.elasticsearch.enabled: true
